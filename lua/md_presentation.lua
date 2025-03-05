@@ -20,12 +20,22 @@ local floating_window = require("floating_window")
 ---@field body string[]: The body of the slide
 ---@field steps string[]: The steps of the slide
 
+---@class present.Options
+---@field win_config vim.api.keyset.win_config: Configuration for the floating window
+---@field width integer: Width of the floating window, overrides `win_config.width`. Defaults to `vim.o.columns`
+---@field height integer: Height of the floating window, overrides `win_config.height`. Defaults to `vim.o.lines`
+---@field border string[]: Border for the floating window, overrides `win_config.border`. Defaults to `{" ", " ",  " ",  " ",  " ",  " ",  " ",  " ",  }`
+---@field title_separator string: A Lua pattern for separating the title from the content. Defaults to `""`
+---@field slide_separator string: A Lua pattern for separating slides. Defaults to `^#`
+---@field step_separator string: A Lua pattern for separating steps. Defaults to `\n$`
+
 
 ---@type present
 local M = {}
 M.buf_last_line = 0
 
 local defaults = {
+  ---@type vim.api.keyset.win_config
   win_config ={
     width = vim.o.columns,
     height = vim.o.lines,
@@ -33,6 +43,8 @@ local defaults = {
   }
 }
 
+--- Setup the plugin
+---@param opts present.Options
 function M.setup(opts)
   opts = opts or {}
   M.win_config = opts.win_config or defaults.win_config
@@ -43,8 +55,6 @@ function M.setup(opts)
   M.slide_separator = opts.slide_separator or "^#"
   M.step_separator = opts.step_separator or "\n$"
 end
-
-local floating_win = floating_window.create(M.win_config)
 
 local set_slide_content = function (content, new)
   local buf_lines = ""
@@ -102,6 +112,8 @@ function M.start_presentation (opts)
   opts = opts or {}
   opts.bufnr = opts.bufnr or 0
   opts.lines = opts.lines or vim.api.nvim_buf_get_lines(opts.bufnr, 0, -1, false)
+
+  local floating_win = floating_window.create(M.win_config)
 
   local user_opts = {
     cmdheight = vim.o.cmdheight
