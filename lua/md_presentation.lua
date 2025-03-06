@@ -11,6 +11,7 @@ local floating_window = require("floating_window")
 ---@field step_separator string: String for separating steps
 ---@field setup function: Function for setting up the presentation
 ---@field start_presentation function: Function for starting the presentation
+---@field has_title number: Defines if the presentation has a title
 
 ---@class present.FloatingWindow
 ---@field buf number: Buffer number
@@ -24,15 +25,17 @@ local floating_window = require("floating_window")
 ---@field win_config vim.api.keyset.win_config: Configuration for the floating window
 ---@field width integer: Width of the floating window, overrides `win_config.width`. Defaults to `vim.o.columns`
 ---@field height integer: Height of the floating window, overrides `win_config.height`. Defaults to `vim.o.lines`
----@field border string[]: Border for the floating window, overrides `win_config.border`. Defaults to `{" ", " ",  " ",  " ",  " ",  " ",  " ",  " ",  }`
+---@field border string[]: Border for the floating window, overrides `win_config.border`. Defaults to 8 blank spaces
 ---@field title_separator string: A Lua pattern for separating the title from the content. Defaults to `""`
 ---@field slide_separator string: A Lua pattern for separating slides. Defaults to `^#`
 ---@field step_separator string: A Lua pattern for separating steps. Defaults to `\n$`
 
 
 ---@type present
-local M = {}
-M.buf_last_line = 0
+local M = {
+  has_title = 0,
+  buf_last_line = 0
+}
 
 local defaults = {
   ---@type vim.api.keyset.win_config
@@ -56,64 +59,14 @@ function M.setup(opts)
   M.step_separator = opts.step_separator or "\n$"
 end
 
-local set_slide_content = function (content, new)
-  local buf_lines = ""
-  if new then
-    local title = ""
-    local space = M.win_config.width - #content - 2
-    for i=1, space do
-      if i == space / 2 then
-        title = title .. " " .. content .. " "
-      else
-        title = title .. "-"
-      end
-    end
-    vim.api.nvim_buf_set_lines(floating_win.buf, 0, -1, false, {title})
-    M.buf_last_line = 1
-  else
-    vim.api.nvim_buf_set_lines(floating_win.buf, M.buf_last_line, -1, false, content)
-    buf_lines = vim.api.nvim_buf_get_lines(floating_win.buf, M.buf_last_line, -1, false)[1]
-    if buf_lines then
-      M.buf_last_line = #buf_lines
-    end
-  end
-end
-
---- Takes some lines and parses them into slides
----@param lines string[]
----@return present.Slide[]
-local parse_slides = function (lines)
-  local slides = {}
-  local current_slide = { steps = {{}} }
-  local current_step = 1
-
-  for _, line in ipairs(lines) do
-    if M.title_separator ~= "" and line:find(M.title_separator) then
-      set_slide_content(line, true)
-    elseif line:find(M.slide_separator) then
-      current_slide = { steps = {{}} }
-      current_step = 1
-      table.insert(current_slide.steps[current_step], line)
-      table.insert(slides, current_slide)
-    elseif line:find(M.step_separator) then
-      current_step = current_step + 1
-      current_slide.steps[current_step] = {}
-      line = string.gsub(line, M.step_separator, "")
-      table.insert(current_slide.steps[current_step], line)
-    else
-      table.insert(current_slide.steps[current_step], line)
-    end
-  end
-
-  return slides
-end
-
 function M.start_presentation (opts)
   opts = opts or {}
   opts.bufnr = opts.bufnr or 0
   opts.lines = opts.lines or vim.api.nvim_buf_get_lines(opts.bufnr, 0, -1, false)
 
   local floating_win = floating_window.create(M.win_config)
+  vim.api.nvim_set_option_value('filetype', 'markdown', {buf = floating_win.buf})
+  vim.api.nvim_set_option_value("readonly", true, {buf = floating_win.buf})
 
   local user_opts = {
     cmdheight = vim.o.cmdheight
@@ -121,6 +74,61 @@ function M.start_presentation (opts)
   local present_opts = {
     cmdheight = 0
   }
+
+  local set_slide_content = function (content, new)
+    vim.api.nvim_set_option_value("readonly", false, {buf = floating_win.buf})
+    local buf_lines = {}
+    if new then
+      local title = ""
+      local space = M.win_config.width - #content - 2
+      for i=1, space do
+        if i == space / 2 then
+          title = title .. " " .. content .. " "
+        else
+          title = title .. "-"
+        end
+      end
+      vim.api.nvim_buf_set_lines(floating_win.buf, 0, -1, false, {title})
+      M.buf_last_line = 1
+    else
+      vim.api.nvim_buf_set_lines(floating_win.buf, M.buf_last_line, -1, false, content)
+      buf_lines = vim.api.nvim_buf_get_lines(floating_win.buf, 0, -1, false)
+      if buf_lines then
+        M.buf_last_line = #buf_lines
+      end
+    end
+    vim.api.nvim_set_option_value("readonly", true, {buf = floating_win.buf})
+  end
+
+  --- Takes some lines and parses them into slides
+  ---@param lines string[]
+  ---@return present.Slide[]
+  local parse_slides = function (lines)
+    local slides = {}
+    local current_slide = { steps = {{}} }
+    local current_step = 1
+
+    for _, line in ipairs(lines) do
+      if M.title_separator ~= "" and M.title_separator ~= nil and line:find(M.title_separator) then
+          M.has_title = 1
+          set_slide_content(line, true)
+      elseif line:find(M.slide_separator) then
+        current_slide = { steps = {{}} }
+        current_step = 1
+        table.insert(current_slide.steps[current_step], line)
+        table.insert(slides, current_slide)
+      elseif line:find(M.step_separator) then
+        current_step = current_step + 1
+        current_slide.steps[current_step] = {}
+        line = string.gsub(line, M.step_separator, "")
+        table.insert(current_slide.steps[current_step], line)
+      else
+        table.insert(current_slide.steps[current_step], line)
+      end
+    end
+
+    return slides
+  end
 
   for option, value in pairs(present_opts) do
     vim.opt[option] = value
@@ -134,34 +142,34 @@ function M.start_presentation (opts)
     current_step = current_step + 1
     if current_step > #M.slides[current_slide].steps then
       current_slide = current_slide + 1
-      -- Reached the end, do nothing
       if current_slide > #M.slides then
         current_slide = #M.slides
         current_step = #M.slides[current_slide].steps
         return
       end
 
-      -- New slide, clean screen
-      M.buf_last_line = 0
+      M.buf_last_line = M.has_title
       current_step = 1
       set_slide_content(M.slides[current_slide].steps[current_step], false)
     else
       set_slide_content(M.slides[current_slide].steps[current_step], false)
     end
+    vim.cmd("norm G")
+    vim.cmd("norm z-")
   end, { buffer = floating_win.buf })
   vim.keymap.set("n", "p", function ()
-    M.buf_last_line = 0
+    M.buf_last_line = M.has_title
     current_step = math.max(current_step - 1, 0)
     if current_step == 0 then
       current_step = 1
 
-      -- Reached the beginning, do nothing
       if current_slide == 1 then
         set_slide_content(M.slides[current_slide].steps[current_step], false)
         return
       end
 
       current_slide = math.max(current_slide - 1, 1)
+      current_step = #M.slides[current_slide].steps
       for _, step in ipairs(M.slides[current_slide].steps) do
         set_slide_content(step, false)
       end
@@ -170,6 +178,8 @@ function M.start_presentation (opts)
         set_slide_content(M.slides[current_slide].steps[i], false)
       end
     end
+    vim.cmd("norm G")
+    vim.cmd("norm z-")
   end, { buffer = floating_win.buf })
   vim.keymap.set("n", "q", vim.cmd.quit, { buffer = floating_win.buf })
 
