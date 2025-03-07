@@ -1,4 +1,4 @@
-local floating_window = require("floating_window")
+local floating_window = require("md_presentation.floating_window")
 
 ---@class Presentation
 ---@field buf_last_line number The last line of the buffer
