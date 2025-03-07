@@ -10,7 +10,6 @@ This project provides a simple Lua script for presenting Markdown files directly
 
 ## Requirements
 - Neovim (v0.10.0 or higher)
-- [floating_window.nvim](https://github.com/Ohnitiel/floating_window.nvim)
 
 ## Installation
 
@@ -18,7 +17,6 @@ This project provides a simple Lua script for presenting Markdown files directly
 ```lua
 {
   "Ohnitiel/md_presentation.nvim",
-  dependencies = { "Ohnitiel/floating_window.nvim" }
 }
 ```
 
@@ -44,7 +42,9 @@ md_presentation.setup({
 })
 
 -- Start the presentation with the current buffer
-vim.api.nvim_set_keymap("n", "<leader>mp", ":lua md_presentation.start_presentation()<CR>", { noremap = true, silent = true })
+:StartPresentation <optional buffer number>
+
+vim.api.nvim_set_keymap("n", "<leader>mp", md_presentation.start_presentation, { noremap = true, silent = true })
 ```
 
 ### Starting a Presentation

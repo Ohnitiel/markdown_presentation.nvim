@@ -251,7 +251,7 @@ function M.setup(opts)
         else
             print("Buffer " .. bufnr .. " is invalid")
         end
-    end, { desc = "Start md_presentation", nargs = 1 })
+    end, { desc = "Start md_presentation", nargs = "?" })
 end
 
 return M
